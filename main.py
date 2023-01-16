@@ -8,28 +8,27 @@ That will place the file in a place where it will be executed on boot.
 The initial starting state of the ESP32 is going to be a missing /SETUP file.
 When this file does not exist, the system goes into AP mode so you can connect
 to it and tell it what your home network ssid/password is. When that's entered,
-it should restart and try to connect to the provided ssid. 
+it should restart and try to connect to the provided ssid.
 
 When this connects to wifi, it will start the webREPL so you
 can connect to it in a browser. This is going to come up at http://<address>:8266
 This is useful for looking at the actual micropython console output.
 
 The simple webserver this starts in AP mode (to get your ssid/pwd) remains up at
-http://<address> in case you need to change the network settings. 
+http://<address> in case you need to change the network settings.
 These settings are stored in that /SETUP file on the local filesystem.
 
 BONUS: Unlike the serial port connections which must only have one connection
 at a time, you can have the webREPL open as you connect via serial elsewhere.
 This is good if you want to tail logs or see program output.
 """
+# pylint: disable=import-error,invalid-name
 
 import os
 import socket
-import sys
 import time
 
 import machine
-from machine import Pin
 import network
 
 AP_SSID = "pcvc"
@@ -39,7 +38,7 @@ DEFAULTS_FILE = "SETUP"
 
 # This is meant to show when wifi is actively on and connected.
 # connect pin 13 to a 220ohm resistor and LED to make this work.
-WIFI_STATUS_PIN = Pin(13, Pin.OUT)
+WIFI_STATUS_PIN = machine.Pin(13, machine.Pin.OUT)
 
 
 def ap_setup_mode():
@@ -67,22 +66,21 @@ def connect_to_ssid():
     wlan.active(True)
     if not wlan.isconnected():
         print("connecting to network...")
-        with open(DEFAULTS_FILE) as f:
+        with open(DEFAULTS_FILE, encoding="utf-8") as f:
             data = f.read().splitlines()
             try:
                 ssid, password = data[0], data[1]
-            except:  # bad data
-                raise RuntimeError("wifi ssid and/or password not present in config")
+            except Exception as exc:  # bad data
+                raise RuntimeError("wifi ssid and/or password not present in config") from exc
         wlan.connect(ssid, password)
         # Give up with an exception after 30 seconds.
         tries = 30
         while not wlan.isconnected():
             if tries == 0:
                 raise RuntimeError("wifi connection unsuccessful")
-            else:
-                print("attempting to connect to SSID '%s'" % ssid)
-                tries -= 1
-                time.sleep(1)
+            print("attempting to connect to SSID '%s'" % ssid)
+            tries -= 1
+            time.sleep(1)
     print("connection established")
     print("network config:", wlan.ifconfig())
     return wlan
@@ -219,10 +217,10 @@ def main(startup_mode):
 
     run_webserver()
 
-
 if __name__ == "__main__":
+    # Check for /SETUP file to determine start mode
     try:
-        open(DEFAULTS_FILE).close()
+        open(DEFAULTS_FILE, encoding="utf-8").close()
         AP_MODE = False
     except OSError:
         pass  # file not found, go into AP Mode
